@@ -60,6 +60,17 @@ def parse_profile(raw, pages):
     profile = BusinessProfile.model_validate(json.loads(raw))
     return validate_profile_evidence(profile, pages)
 
+PROFILE_TOOL = {
+    "name": "submit_business_profile",
+    "description": "Submit the evidence-grounded structured business profile.",
+    "input_schema": BusinessProfile.model_json_schema(),
+}
+
+def parse_tool_profile(tool_input, pages):
+    """Validate structured tool input without fragile free-text JSON parsing."""
+    profile = BusinessProfile.model_validate(tool_input)
+    return validate_profile_evidence(profile, pages)
+
 def analyze_business(pages, website, api_key, model="claude-sonnet-5-5"):
     if not api_key:
         raise ValueError("Anthropic API key is not configured")
@@ -69,9 +80,18 @@ def analyze_business(pages, website, api_key, model="claude-sonnet-5-5"):
     from anthropic import Anthropic
     client = Anthropic(api_key=api_key)
     response = client.messages.create(
-        model=model, max_tokens=3500, system=SYSTEM,
+        model=model,
+        max_tokens=8192,
+        system=SYSTEM + "\\nUse the submit_business_profile tool exactly once. Keep findings concise.",
+        tools=[PROFILE_TOOL],
+        tool_choice={"type": "tool", "name": "submit_business_profile"},
         messages=[{"role": "user", "content":
-            "Website: " + website + "\nAnalyze ONLY these fetched page records:\n" +
+            "Website: " + website + "\\nAnalyze ONLY these fetched page records:\\n" +
             json.dumps(evidence, ensure_ascii=False)}])
-    raw = "\n".join(block.text for block in response.content if block.type == "text")
-    return parse_profile(raw, evidence)
+    if response.stop_reason == "max_tokens":
+        raise ValueError("Claude reached its output limit. Select fewer pages and try again.")
+    calls = [block for block in response.content
+             if block.type == "tool_use" and block.name == "submit_business_profile"]
+    if len(calls) != 1:
+        raise ValueError("Claude did not return the required structured profile.")
+    return parse_tool_profile(calls[0].input, evidence)
