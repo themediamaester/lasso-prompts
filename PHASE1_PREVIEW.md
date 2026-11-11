@@ -24,7 +24,7 @@ Set `ANTHROPIC_API_KEY` in local Streamlit secrets or your environment. Never co
 6. Select the service, About, pricing, and product pages. Confirm API use, then click **Analyze selected pages** once.
 7. Review each service and its supporting quotation. Export the reviewed JSON.
 
-**Dependency note:** Community Cloud detects `requirements.txt`, which currently only lists Streamlit and Anthropic. For the separate test deployment, the branch must also include the crawler dependencies in `requirements.txt` before deployment.
+**Dependencies:** This development branch includes the crawler dependencies in `requirements.txt`; production `main` is unchanged.
 
 ## Pass criteria
 
