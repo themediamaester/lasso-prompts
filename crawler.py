@@ -64,11 +64,13 @@ def priority(url):
         return 5
     return 3
 
-def fetch(url, redirects=MAX_REDIRECTS):
+def fetch(url, redirects=MAX_REDIRECTS, allowed_host=None):
     """Pin the TCP connection to a validated public IP while verifying TLS for the hostname."""
     current = normalize_url(url)
     for _ in range(redirects + 1):
         p = urlparse(current)
+        if allowed_host and p.hostname != allowed_host:
+            raise CrawlError("Redirect outside the approved domain")
         ip = resolve_public_ip(p.hostname)
         port = p.port or (443 if p.scheme == "https" else 80)
         host_header = p.hostname + ((":" + str(port)) if p.port else "")
@@ -132,7 +134,7 @@ def crawl(website, max_pages=MAX_PAGES):
     max_pages = min(max(1, int(max_pages)), MAX_PAGES)
     robots_url = urljoin(start, "/robots.txt")
     try:
-        _, _, robots_text = fetch(robots_url)
+        _, _, robots_text = fetch(robots_url, allowed_host=origin)
     except CrawlError as exc:
         # A missing robots.txt means no stated rules; denial/network failure fails closed.
         if str(exc) == "HTTP 404":
@@ -153,15 +155,28 @@ def crawl(website, max_pages=MAX_PAGES):
         if urlparse(sitemap).hostname != origin or not parser.can_fetch(USER_AGENT, sitemap):
             continue
         try:
-            _, content_type, xml = fetch(sitemap)
+            _, content_type, xml = fetch(sitemap, allowed_host=origin)
             if "xml" not in content_type and not xml.lstrip().startswith("<?xml"):
                 continue
             for link in sitemap_links(xml)[:MAX_CANDIDATES]:
-                if urlparse(link).hostname == origin and link not in candidates:
+                if urlparse(link).hostname != origin:
+                    continue
+                if link.lower().split("?")[0].endswith(".xml") and link not in checked_sitemaps and len(checked_sitemaps) < 8:
+                    checked_sitemaps.add(link)
+                    try:
+                        _, _, nested_xml = fetch(link, allowed_host=origin)
+                        for page_link in sitemap_links(nested_xml)[:MAX_CANDIDATES]:
+                            if urlparse(page_link).hostname == origin and page_link not in candidates:
+                                candidates.append(page_link)
+                    except CrawlError:
+                        pass
+                elif link not in candidates:
                     candidates.append(link)
         except CrawlError:
             pass
-    queue = deque((url, 0) for url in sorted(candidates[:MAX_CANDIDATES], key=priority))
+    # Reserve the first crawl slots for high-value business pages, not articles.
+    selected = sorted(candidates, key=priority)[:MAX_CANDIDATES]
+    queue = deque((url, 0) for url in selected)
     while queue and len(pages) < max_pages and attempts < MAX_ATTEMPTS:
         queue = deque(sorted(queue, key=lambda item: (priority(item[0]), item[1])))
         url, depth = queue.popleft()
@@ -172,7 +187,7 @@ def crawl(website, max_pages=MAX_PAGES):
             continue
         attempts += 1
         try:
-            final_url, content_type, html = fetch(url)
+            final_url, content_type, html = fetch(url, allowed_host=origin)
             if urlparse(final_url).hostname != origin:
                 raise CrawlError("Redirected outside original domain")
             if "text/html" not in content_type.lower():
