@@ -71,7 +71,7 @@ Return the answer in this exact structure:
 """
 
         message = client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-5-5",
             max_tokens=1500,
             messages=[{"role": "user", "content": source_prompt}]
         )
@@ -144,7 +144,7 @@ Be rigorous. Quality and authenticity over volume.
 """
 
             message = client.messages.create(
-                model="claude-sonnet-4-20250514",
+                model="claude-sonnet-5-5",
                 max_tokens=4000,
                 messages=[{"role": "user", "content": generation_prompt}]
             )
