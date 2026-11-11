@@ -62,6 +62,7 @@ def parse_profile(raw, pages):
 
 PROFILE_TOOL = {
     "name": "submit_business_profile",
+    "strict": True,
     "description": "Submit the evidence-grounded structured business profile.",
     "input_schema": BusinessProfile.model_json_schema(),
 }
@@ -84,7 +85,7 @@ def analyze_business(pages, website, api_key, model="claude-sonnet-5-5"):
         max_tokens=8192,
         system=SYSTEM + "\\nUse the submit_business_profile tool exactly once. Keep findings concise.",
         tools=[PROFILE_TOOL],
-        tool_choice={"type": "tool", "name": "submit_business_profile"},
+        tool_choice={"type": "auto", "disable_parallel_tool_use": True},
         messages=[{"role": "user", "content":
             "Website: " + website + "\\nAnalyze ONLY these fetched page records:\\n" +
             json.dumps(evidence, ensure_ascii=False)}])
