@@ -1,2 +1,5 @@
 streamlit
 anthropic
+urllib3
+beautifulsoup4
+pydantic>=2,<3
