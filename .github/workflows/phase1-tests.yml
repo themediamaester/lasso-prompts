@@ -13,7 +13,7 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install -r requirements-dev.txt
-      - run: python -m compileall -q crawler.py extractor.py
+      - run: python -m compileall -q crawler.py extractor.py analyzer.py schemas.py phase1_app.py
       - run: python -m pytest tests -q
       - name: Crawl Attention Lasso (non-blocking diagnostic)
         run: python smoke_test.py
