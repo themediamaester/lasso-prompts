@@ -29,9 +29,22 @@ def test_business_analysis_with_mocked_anthropic():
         class messages:
             @staticmethod
             def create(**kwargs):
-                assert kwargs["model"] == "claude-sonnet-5-5"
+                assert kwargs["model"] == "claude-sonnet-5-5"\n                assert kwargs["tool_choice"]["name"] == "submit_business_profile"
                 assert "search engine optimization" in kwargs["messages"][0]["content"]
-                return type("Response", (), {"content": [type("Text", (), {"type": "text", "text": json.dumps(response)})()]})()
+                return type("Response", (), {"stop_reason": "tool_use", "content": [type("Tool", (), {"type": "tool_use", "name": "submit_business_profile", "input": response})()]})()
     with patch("anthropic.Anthropic", return_value=FakeClient()):
         profile = analyze_business(pages, "https://example.com", "fake-test-key")
     assert {s.name for s in profile.services} == {"Search Engine Optimization", "Marketing Automation"}
+
+def test_truncated_tool_response_reports_actionable_error():
+    pages = [{"url":"https://example.com","title":"Example","description":"",
+              "headings":[],"text":"We provide SEO services. " * 10,"sufficient":True}]
+    class FakeClient:
+        class messages:
+            @staticmethod
+            def create(**kwargs):
+                return type("Response", (), {"stop_reason": "max_tokens", "content": []})()
+    with patch("anthropic.Anthropic", return_value=FakeClient()):
+        import pytest
+        with pytest.raises(ValueError, match="output limit"):
+            analyze_business(pages, "https://example.com", "fake-test-key")
