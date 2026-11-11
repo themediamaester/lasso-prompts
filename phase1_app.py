@@ -6,7 +6,8 @@ from pydantic import ValidationError
 from crawler import crawl, CrawlError
 from analyzer import analyze_business, prepare_evidence, validate_profile_evidence
 from schemas import BusinessProfile
-from prompt_generator import generate_prompts, PromptSet, validate_prompt_set
+from prompt_generator import generate_prompts, PromptSet, validate_prompt_set, generate_researched_prompts, validate_sourced_prompts, SourcedPromptSet
+from research_evidence import verify_public_quote, ResearchEvidence
 import csv
 import io
 
@@ -75,7 +76,7 @@ if "phase1_crawl" in st.session_state:
             st.error("Profile structure or cited evidence is invalid: " + str(exc)[:220])
 
 st.divider()
-st.header("Generate buyer-intent prompts")
+st.header("AI prompt brainstorming (unverified)")
 st.write("Use the business profile you just created, or upload an exported JSON profile. No recrawl required.")
 uploaded = st.file_uploader("Import reviewed business profile (JSON)", type=["json"])
 prompt_profile = None
@@ -138,3 +139,69 @@ if prompt_profile is not None:
                                   "lasso-buyer-prompts.json", "application/json")
         except (ValidationError, ValueError) as exc:
             st.warning("Fix invalid or duplicate prompt rows before exporting: " + str(exc)[:350])
+
+st.divider()
+st.header("Research-backed buyer prompts")
+st.write("Supply a public page and an exact quote. Lasso verifies the quote exists before generating source-linked questions. This does not establish search volume or prove the author is a buyer.")
+if "research_quotes" not in st.session_state:
+    st.session_state.research_quotes = []
+with st.form("research_source_form"):
+    source_url = st.text_input("Public source URL", placeholder="https://example.org/discussion")
+    source_quote = st.text_area("Exact question or relevant excerpt from that page", height=110)
+    source_type = st.selectbox("Source type", ["public discussion", "review", "FAQ", "article", "webpage", "other"])
+    submitted = st.form_submit_button("Verify and add source")
+if submitted:
+    try:
+        with st.spinner("Checking source access and exact quotation..."):
+            record = verify_public_quote(source_url, source_quote)
+            record.source_type = source_type
+            if not any(str(e.source_url) == str(record.source_url) and e.quote == record.quote
+                       for e in st.session_state.research_quotes):
+                st.session_state.research_quotes.append(record)
+                st.success("Source quotation verified and added")
+            else:
+                st.info("This source quotation is already in the research set")
+    except (ValueError, Exception) as exc:
+        st.error(f"Could not verify source: {str(exc)[:280]}")
+if st.session_state.research_quotes:
+    st.subheader(f"Verified source quotations ({len(st.session_state.research_quotes)})")
+    for i, record in enumerate(st.session_state.research_quotes):
+        with st.expander(f"{i+1}. {record.source_type}: {str(record.source_url)}"):
+            st.write(record.quote)
+            st.caption(f"Verification: {record.verification} · {record.retrieved_at}")
+            if st.button("Remove source", key=f"remove_source_{i}"):
+                st.session_state.research_quotes.pop(i)
+                st.rerun()
+    st.download_button("Export research evidence (JSON)",
+                       json.dumps([e.model_dump(mode="json") for e in st.session_state.research_quotes],indent=2),
+                       "lasso-research-evidence.json", "application/json")
+if prompt_profile is not None and st.session_state.research_quotes:
+    researched_count = st.slider("Maximum researched prompts", 1, 20, 10)
+    st.caption("A verified quotation is evidence that wording appeared on a page, not proof of customer demand.")
+    research_consent = st.checkbox("I approve one Anthropic request for source-linked prompt generation.")
+    if st.button("Generate sourced prompts", disabled=not (research_consent and prompt_key)):
+        try:
+            with st.spinner("Generating traceable questions..."):
+                st.session_state.sourced_set = generate_researched_prompts(
+                    prompt_profile, st.session_state.research_quotes, prompt_key, count=researched_count)
+                st.session_state.sourced_profile_name = prompt_profile.name
+        except Exception as exc:
+            st.error(f"Research generation failed: {type(exc).__name__}: {str(exc)[:300]}")
+    if "sourced_set" in st.session_state and st.session_state.get("sourced_profile_name") == prompt_profile.name:
+        st.subheader("Source-linked prompt library")
+        for i, item in enumerate(st.session_state.sourced_set.prompts):
+            with st.expander(f"{i+1}. {item.prompt}", expanded=i==0):
+                st.write(f"**Source:** {item.source_url}")
+                st.write(f"**Original wording:** {item.source_quote}")
+                st.write(f"**Classification:** {item.provenance} · {item.intent} · {item.stage}")
+                st.write(f"**Derivation:** {item.transformation}")
+        st.download_button("Export sourced prompts (JSON)",
+                           st.session_state.sourced_set.model_dump_json(indent=2),
+                           "lasso-sourced-prompts.json", "application/json")
+        output = io.StringIO()
+        rows = [p.model_dump() for p in st.session_state.sourced_set.prompts]
+        writer = csv.DictWriter(output, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+        st.download_button("Export sourced prompts (CSV)", output.getvalue(),
+                           "lasso-sourced-prompts.csv", "text/csv")
