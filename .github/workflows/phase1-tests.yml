@@ -1,0 +1,17 @@
+name: Phase 1 tests
+on:
+  push:
+    branches: [feature/phase1-crawler]
+  pull_request:
+    branches: [main]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements-dev.txt urllib3
+      - run: python -m compileall -q crawler.py extractor.py
+      - run: python -m pytest tests -q
