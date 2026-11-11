@@ -76,7 +76,18 @@ Return the answer in this exact structure:
             messages=[{"role": "user", "content": source_prompt}]
         )
 
-        st.markdown(message.content[0].text)
+        
+response_text = "\n".join(
+    block.text
+    for block in message.content
+    if block.type == "text"
+)
+
+if response_text:
+    st.markdown(response_text)
+else:
+    st.warning("No text was returned by Claude.")
+
 
 st.divider()
 st.subheader("Step 2 — Paste the evidence")
@@ -149,7 +160,13 @@ Be rigorous. Quality and authenticity over volume.
                 messages=[{"role": "user", "content": generation_prompt}]
             )
 
-            result = message.content[0].text
+            
+result = "\n".join(
+    block.text
+    for block in message.content
+    if block.type == "text"
+)
+
             st.markdown(result)
 
             st.download_button(
