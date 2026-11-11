@@ -4,7 +4,7 @@ import os
 import streamlit as st
 from pydantic import ValidationError
 from crawler import crawl, CrawlError
-from analyzer import analyze_business, prepare_evidence
+from analyzer import analyze_business, prepare_evidence, validate_profile_evidence
 from schemas import BusinessProfile
 
 st.set_page_config(page_title="Lasso Prompts · Phase 1", layout="wide")
@@ -51,6 +51,7 @@ if "phase1_crawl" in st.session_state:
                 with st.spinner("Analyzing the retrieved evidence..."):
                     profile = analyze_business([pages[i] for i in selected],
                                                st.session_state.phase1_site, api_key)
+                    st.session_state.phase1_evidence = prepare_evidence([pages[i] for i in selected])
                     st.session_state.phase1_profile = profile
                     st.session_state.phase1_edit = profile.model_dump_json(indent=2)
             except Exception as exc:
@@ -62,9 +63,10 @@ if "phase1_crawl" in st.session_state:
         st.text_area("Editable JSON", height=480, key="phase1_edit")
         try:
             reviewed = BusinessProfile.model_validate_json(st.session_state.phase1_edit)
-            st.success("Profile structure is valid. Review every claim before using it.")
+            validate_profile_evidence(reviewed, st.session_state.phase1_evidence)
+            st.success("Profile structure and source quotations are valid. Review interpretations before using it.")
             st.download_button("Export reviewed business profile",
                                data=reviewed.model_dump_json(indent=2),
                                file_name="lasso-business-profile.json", mime="application/json")
         except (ValidationError, ValueError) as exc:
-            st.error("Profile is not valid JSON or does not match the required profile structure.")
+            st.error("Profile structure or cited evidence is invalid: " + str(exc)[:220])
