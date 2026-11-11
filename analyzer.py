@@ -62,7 +62,6 @@ def parse_profile(raw, pages):
 
 PROFILE_TOOL = {
     "name": "submit_business_profile",
-    "strict": True,
     "description": "Submit the evidence-grounded structured business profile.",
     "input_schema": BusinessProfile.model_json_schema(),
 }
