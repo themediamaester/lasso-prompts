@@ -9,7 +9,7 @@ from schemas import BusinessProfile
 
 st.set_page_config(page_title="Lasso Prompts · Phase 1", layout="wide")
 st.title("Lasso Prompts · Business Intelligence")
-st.caption("Development preview: website evidence first. No competitors or buyer prompts yet.")
+st.caption("Development preview · build structured-profile-v2 · website evidence first.")
 
 website = st.text_input("Business website", value="https://attentionlasso.com")
 if st.button("Discover website pages"):
@@ -55,8 +55,8 @@ if "phase1_crawl" in st.session_state:
                     st.session_state.phase1_profile = profile
                     st.session_state.phase1_edit = profile.model_dump_json(indent=2)
             except Exception as exc:
-                st.error(f"Analysis failed; the crawl is preserved. {type(exc).__name__}. "
-                         "Review the developer logs for details.")
+                st.error(f"Analysis failed; crawl preserved. {type(exc).__name__}: {str(exc)[:300]}")
+                st.caption("Build: structured-profile-v2. If this label is missing, your app is running older code.")
     if "phase1_profile" in st.session_state:
         st.subheader("Review and correct business profile")
         st.info("Source evidence is checked in the generated draft. Human edits must be reviewed before export.")
