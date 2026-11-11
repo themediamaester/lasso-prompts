@@ -134,9 +134,12 @@ def crawl(website, max_pages=MAX_PAGES):
     try:
         _, _, robots_text = fetch(robots_url)
     except CrawlError as exc:
-        # Fail closed when we cannot determine crawl permissions.
-        return {"pages": [], "failures": [{"url": robots_url, "reason": str(exc)}],
-                "attempts": 0, "status": "robots_unavailable"}
+        # A missing robots.txt means no stated rules; denial/network failure fails closed.
+        if str(exc) == "HTTP 404":
+            robots_text = ""
+        else:
+            return {"pages": [], "failures": [{"url": robots_url, "reason": str(exc)}],
+                    "attempts": 0, "status": "robots_unavailable"}
     parser = RobotFileParser()
     parser.parse(robots_text.splitlines())
     sitemap_urls = re.findall(r"(?im)^\s*Sitemap:\s*(\S+)", robots_text)
