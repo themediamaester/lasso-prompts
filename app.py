@@ -1,3 +1,4 @@
+
 import streamlit as st
 import anthropic
 
@@ -41,7 +42,9 @@ st.subheader("Step 1 — Find real customer language")
 
 if st.button("Suggest best data sources"):
     with st.spinner("Finding high-signal sources..."):
-        client = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
+        client = anthropic.Anthropic(
+            api_key=st.secrets["ANTHROPIC_API_KEY"]
+        )
 
         source_prompt = f"""
 You are helping a marketer collect real buyer language for the brand "{brand}" ({website}).
@@ -70,9 +73,9 @@ Return the answer in this exact structure:
         message = client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=1500,
-            temperature=0.4,
             messages=[{"role": "user", "content": source_prompt}]
         )
+
         st.markdown(message.content[0].text)
 
 st.divider()
@@ -91,7 +94,9 @@ if st.button("Generate Prompt Library", type="primary"):
         st.warning("Brand name and website are required.")
     else:
         with st.spinner("Extracting natural buyer language and building prompts..."):
-            client = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
+            client = anthropic.Anthropic(
+                api_key=st.secrets["ANTHROPIC_API_KEY"]
+            )
 
             generation_prompt = f"""
 You are Lasso Prompts — an expert at turning real customer language into high-quality buyer-intent prompts for AI visibility tracking and content.
@@ -141,7 +146,6 @@ Be rigorous. Quality and authenticity over volume.
             message = client.messages.create(
                 model="claude-sonnet-4-20250514",
                 max_tokens=4000,
-                temperature=0.25,
                 messages=[{"role": "user", "content": generation_prompt}]
             )
 
