@@ -36,7 +36,7 @@ def prepare_evidence(pages, max_chars=60000):
         remaining -= len(excerpt) + 200
     return selected
 
-def _validate_evidence(profile, evidence_pages):
+def validate_profile_evidence(profile, evidence_pages):
     sources = {p["url"]: p for p in evidence_pages}
     findings = list(profile.services)
     for key in ("audiences", "markets", "problems_solved", "differentiators", "proof_points"):
@@ -58,7 +58,7 @@ def parse_profile(raw, pages):
     if raw.strip().startswith("```"):
         raw = re.sub(r"^\s*```(?:json)?\s*|\s*```\s*$", "", raw.strip(), flags=re.I)
     profile = BusinessProfile.model_validate(json.loads(raw))
-    return _validate_evidence(profile, pages)
+    return validate_profile_evidence(profile, pages)
 
 def analyze_business(pages, website, api_key, model="claude-sonnet-5-5"):
     if not api_key:
