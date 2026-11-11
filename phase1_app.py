@@ -1,53 +1,70 @@
-"""Development-only Streamlit entrypoint; main app.py remains unchanged."""
+"""Development-only Streamlit entrypoint. Production app.py remains unchanged."""
 import json
 import os
 import streamlit as st
+from pydantic import ValidationError
 from crawler import crawl, CrawlError
 from analyzer import analyze_business, prepare_evidence
+from schemas import BusinessProfile
 
 st.set_page_config(page_title="Lasso Prompts · Phase 1", layout="wide")
 st.title("Lasso Prompts · Business Intelligence")
-st.caption("Development preview. No competitor research or prompt generation yet.")
+st.caption("Development preview: website evidence first. No competitors or buyer prompts yet.")
+
 website = st.text_input("Business website", value="https://attentionlasso.com")
 if st.button("Discover website pages"):
     try:
-        with st.spinner("Crawling publicly accessible pages..."):
+        with st.spinner("Crawling public website pages..."):
             st.session_state.phase1_crawl = crawl(website)
+            st.session_state.phase1_site = website
             st.session_state.pop("phase1_profile", None)
+            st.session_state.pop("phase1_edit", None)
     except (CrawlError, ValueError) as exc:
         st.error(str(exc))
+
 if "phase1_crawl" in st.session_state:
     result = st.session_state.phase1_crawl
-    st.write("Pages fetched:", len(result["pages"]), "· Attempts:", result["attempts"])
+    st.write(f'{len(result["pages"])} pages fetched · {result["attempts"]} page requests')
     for failure in result["failures"]:
         st.warning(f'{failure["url"]}: {failure["reason"]}')
     pages = result["pages"]
     if pages:
-        labels = [f'{p["title"] or p["url"]} ({len(p["text"])} chars)' for p in pages]
-        selected = st.multiselect("Pages to include in analysis", options=list(range(len(pages))),
-                                  default=list(range(len(pages))), format_func=lambda i: labels[i])
+        labels = [f'{p["title"] or p["url"]} ({len(p["text"])} characters)' for p in pages]
+        selected = st.multiselect(
+            "Select evidence pages", options=list(range(len(pages))),
+            default=list(range(len(pages))), format_func=lambda i: labels[i])
         for i in selected:
             with st.expander(labels[i]):
                 st.write(pages[i]["url"])
                 st.text(pages[i]["text"][:3000])
         evidence = prepare_evidence([pages[i] for i in selected])
-        st.caption(f"Prepared {len(evidence)} pages and {sum(len(p['text']) for p in evidence):,} text characters for analysis.")
+        characters = sum(len(p["text"]) for p in evidence)
+        st.caption(f"{len(evidence)} selected pages · {characters:,} characters of evidence")
+        st.info("Crawling is free. Clicking Analyze makes an Anthropic API request using existing credits. "
+                "The exact charge depends on model usage. No background AI requests are made.")
+        consent = st.checkbox("I approve one Anthropic analysis request using my existing API credits.")
         api_key = st.secrets.get("ANTHROPIC_API_KEY", os.getenv("ANTHROPIC_API_KEY", ""))
-        if st.button("Analyze selected pages with Claude", disabled=not bool(api_key) or not evidence):
+        if not api_key:
+            st.warning("Configure ANTHROPIC_API_KEY to enable analysis.")
+        if st.button("Analyze selected pages", disabled=not (consent and api_key and evidence)):
             try:
-                with st.spinner("Analyzing source evidence..."):
-                    st.session_state.phase1_profile = analyze_business(
-                        [pages[i] for i in selected], website, api_key)
+                with st.spinner("Analyzing the retrieved evidence..."):
+                    profile = analyze_business([pages[i] for i in selected],
+                                               st.session_state.phase1_site, api_key)
+                    st.session_state.phase1_profile = profile
+                    st.session_state.phase1_edit = profile.model_dump_json(indent=2)
             except Exception as exc:
-                st.error(f"Analysis failed. Crawl results are preserved. {type(exc).__name__}: {str(exc)[:180]}")
+                st.error(f"Analysis failed; the crawl is preserved. {type(exc).__name__}. "
+                         "Review the developer logs for details.")
     if "phase1_profile" in st.session_state:
-        profile = st.session_state.phase1_profile
-        st.subheader("Business profile · Review before approving")
-        st.info("This is an AI-produced draft. Review all fields and source excerpts before using it.")
-        edited = st.text_area("Editable profile JSON", value=profile.model_dump_json(indent=2), height=500)
+        st.subheader("Review and correct business profile")
+        st.info("Source evidence is checked in the generated draft. Human edits must be reviewed before export.")
+        st.text_area("Editable JSON", height=480, key="phase1_edit")
         try:
-            parsed = json.loads(edited)
-            st.download_button("Export reviewed JSON", data=json.dumps(parsed, indent=2),
+            reviewed = BusinessProfile.model_validate_json(st.session_state.phase1_edit)
+            st.success("Profile structure is valid. Review every claim before using it.")
+            st.download_button("Export reviewed business profile",
+                               data=reviewed.model_dump_json(indent=2),
                                file_name="lasso-business-profile.json", mime="application/json")
-        except json.JSONDecodeError:
-            st.warning("Correct JSON formatting before exporting.")
+        except (ValidationError, ValueError) as exc:
+            st.error("Profile is not valid JSON or does not match the required profile structure.")
