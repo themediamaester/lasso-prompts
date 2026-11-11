@@ -30,7 +30,8 @@ def test_business_analysis_with_mocked_anthropic():
             @staticmethod
             def create(**kwargs):
                 assert kwargs["model"] == "claude-sonnet-5-5"
-                assert kwargs["tool_choice"]["name"] == "submit_business_profile"
+                assert kwargs["tool_choice"]["type"] == "auto"
+                assert kwargs["tools"][0]["strict"] is True
                 assert "search engine optimization" in kwargs["messages"][0]["content"]
                 return type("Response", (), {"stop_reason": "tool_use", "content": [type("Tool", (), {"type": "tool_use", "name": "submit_business_profile", "input": response})()]})()
     with patch("anthropic.Anthropic", return_value=FakeClient()):
