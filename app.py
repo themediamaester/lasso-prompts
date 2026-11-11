@@ -161,20 +161,22 @@ Be rigorous. Quality and authenticity over volume.
             )
 
             
-result = "\n".join(
-    block.text
-    for block in message.content
-    if block.type == "text"
-)
-
-            st.markdown(result)
-
-                st.download_button(
-                label="Download as Markdown",
-                data=result,
-                file_name=f"{brand.lower().replace(' ', '-')}-lasso-prompts.md",
-                mime="text/markdown"
+            result = "\n".join(
+                block.text
+                for block in message.content
+                if block.type == "text"
             )
+
+            if result:
+                st.markdown(result)
+                st.download_button(
+                    label="Download as Markdown",
+                    data=result,
+                    file_name=f"{brand.lower().replace(' ', '-')}-lasso-prompts.md",
+                    mime="text/markdown"
+                )
+            else:
+                st.warning("No text was returned by Claude.")
 
 st.divider()
 st.caption("Lasso Prompts · Built by Attention Lasso")
