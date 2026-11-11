@@ -12,6 +12,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install -r requirements-dev.txt urllib3
+      - run: pip install -r requirements-dev.txt
       - run: python -m compileall -q crawler.py extractor.py
       - run: python -m pytest tests -q
+      - name: Crawl Attention Lasso (non-blocking diagnostic)
+        run: python smoke_test.py
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: attention-lasso-crawl
+          path: attention-lasso-crawl-report.json
