@@ -1,0 +1,5 @@
+-r requirements.txt
+urllib3
+beautifulsoup4
+pydantic>=2,<3
+pytest
