@@ -77,16 +77,16 @@ Return the answer in this exact structure:
         )
 
         
-response_text = "\n".join(
-    block.text
-    for block in message.content
-    if block.type == "text"
-)
+        response_text = "\n".join(
+            block.text
+            for block in message.content
+            if block.type == "text"
+        )
 
-if response_text:
-    st.markdown(response_text)
-else:
-    st.warning("No text was returned by Claude.")
+        if response_text:
+            st.markdown(response_text)
+        else:
+            st.warning("No text was returned by Claude.")
 
 
 st.divider()
@@ -169,7 +169,7 @@ result = "\n".join(
 
             st.markdown(result)
 
-            st.download_button(
+                st.download_button(
                 label="Download as Markdown",
                 data=result,
                 file_name=f"{brand.lower().replace(' ', '-')}-lasso-prompts.md",
