@@ -8,6 +8,7 @@ from analyzer import analyze_business, prepare_evidence, validate_profile_eviden
 from schemas import BusinessProfile
 from prompt_generator import generate_prompts, PromptSet, validate_prompt_set, generate_researched_prompts, validate_sourced_prompts, SourcedPromptSet
 from research_evidence import verify_public_quote, ResearchEvidence
+from source_discovery import discover_evidence
 import csv
 import io
 
@@ -145,6 +146,39 @@ st.header("Research-backed buyer prompts")
 st.write("Supply a public page and an exact quote. Lasso verifies the quote exists before generating source-linked questions. This does not establish search volume or prove the author is a buyer.")
 if "research_quotes" not in st.session_state:
     st.session_state.research_quotes = []
+if prompt_profile is not None:
+    discovery_market = st.text_input("Discovery market (optional)", key="discovery_market", placeholder="e.g. Kenya")
+    st.caption("Free public RSS discovery, up to 3 search queries and 10 source pages. Search providers may block automated access. No AI credits used.")
+    if st.button("Discover public buyer questions"):
+        try:
+            with st.spinner("Searching and checking public source pages..."):
+                discovery = discover_evidence(prompt_profile, discovery_market)
+            st.session_state.discovery_result = discovery
+            st.session_state.discovery_selection = []
+        except Exception as exc:
+            st.error("Discovery unavailable: " + str(exc)[:280])
+    if "discovery_result" in st.session_state:
+        result = st.session_state.discovery_result
+        st.write(f'{len(result["records"])} verified quotations · {result["candidates_checked"]} source pages checked')
+        st.caption(result["note"])
+        for failure in result["failures"][:5]:
+            st.warning(str(failure)[:240])
+        if not result["records"]:
+            st.info("No verified public questions found. This does not mean buyers aren't asking. Add sources manually below.")
+        else:
+            options = list(range(len(result["records"])))
+            chosen = st.multiselect("Choose discovered questions to add", options,
+                format_func=lambda i: result["records"][i].quote[:130], key="discovery_selection")
+            for i in chosen:
+                rec = result["records"][i]
+                st.caption(f'Source: {rec.source_url} · {rec.context}')
+            if st.button("Add selected verified questions"):
+                existing = {(str(x.source_url),x.quote) for x in st.session_state.research_quotes}
+                for i in chosen:
+                    rec = result["records"][i]
+                    if (str(rec.source_url),rec.quote) not in existing:
+                        st.session_state.research_quotes.append(rec)
+                st.success("Selected quotations added to the research set")
 with st.form("research_source_form"):
     source_url = st.text_input("Public source URL", placeholder="https://example.org/discussion")
     source_quote = st.text_area("Exact question or relevant excerpt from that page", height=110)
